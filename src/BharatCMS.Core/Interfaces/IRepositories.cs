@@ -23,9 +23,9 @@ public interface IRepository<T> where T : class
 public interface IUserRepository : IRepository<User>
 {
     Task<User?> GetByEmailAsync(string email, CancellationToken ct = default);
-    Task<User?> GetWithRoleAsync(Guid userId, CancellationToken ct = default);
-    Task<bool> EmailExistsAsync(string email, Guid? excludeUserId = null, CancellationToken ct = default);
-    Task UpdateLastLoginAsync(Guid userId, string ipAddress, CancellationToken ct = default);
+    Task<User?> GetWithRoleAsync(long userId, CancellationToken ct = default);
+    Task<bool> EmailExistsAsync(string email, long? excludeUserId = null, CancellationToken ct = default);
+    Task UpdateLastLoginAsync(long userId, string ipAddress, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -34,7 +34,7 @@ public interface IUserRepository : IRepository<User>
 public interface ITenantRepository : IRepository<Tenant>
 {
     Task<Tenant?> GetBySlugAsync(string slug, CancellationToken ct = default);
-    Task<bool> SlugExistsAsync(string slug, Guid? excludeTenantId = null, CancellationToken ct = default);
+    Task<bool> SlugExistsAsync(string slug, long? excludeTenantId = null, CancellationToken ct = default);
     Task<IEnumerable<Tenant>> GetActiveTenantsAsync(CancellationToken ct = default);
 }
 

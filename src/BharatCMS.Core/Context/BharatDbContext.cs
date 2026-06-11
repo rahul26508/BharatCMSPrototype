@@ -11,7 +11,7 @@ namespace BharatCMS.Core.Context;
 public class BharatDbContext : DbContext
 {
     private readonly Guid? _currentTenantId;
-    private readonly bool _bypassTenantFilter = false;
+    private bool _bypassTenantFilter = false;
 
     public BharatDbContext(DbContextOptions<BharatDbContext> options) : base(options)
     {
@@ -249,48 +249,39 @@ public class BharatDbContext : DbContext
 
     private void ApplyGlobalQueryFilters(ModelBuilder modelBuilder)
     {
-        // Skip filter bypass for system queries
         if (_bypassTenantFilter) return;
 
-        // Apply tenant filter to all ITenantEntity types
-        var tenantEntityTypes = modelBuilder.Model.GetEntityTypes()
-            .Where(t => typeof(ITenantEntity).IsAssignableFrom(t.ClrType))
-            .ToList();
-
-        foreach (var entityType in tenantEntityTypes)
-        {
-            var filterPredicate = CreateTenantFilterExpression(entityType.ClrType);
-            modelBuilder.Entity(entityType.ClrType).HasQueryFilter(filterPredicate);
-        }
-
-        // Add soft-delete filter to BaseEntity types
-        var baseEntityTypes = modelBuilder.Model.GetEntityTypes()
+        var entityTypes = modelBuilder.Model.GetEntityTypes()
             .Where(t => typeof(BaseEntity).IsAssignableFrom(t.ClrType))
             .ToList();
 
-        foreach (var entityType in baseEntityTypes)
+        foreach (var entityType in entityTypes)
         {
-            var param = Expression.Parameter(entityType.ClrType, "e");
-            var deletedProp = Expression.Property(param, nameof(BaseEntity.IsDeleted));
-            var filter = Expression.Lambda(
-                Expression.Equal(deletedProp, Expression.Constant(false)),
-                param
-            );
+            var clrType = entityType.ClrType;
+            var param = Expression.Parameter(clrType, "e");
 
-            var existingFilter = modelBuilder.Entity(entityType.ClrType).GetQueryFilter();
-            if (existingFilter != null)
+            Expression? combinedBody = null;
+
+            // Add tenant filter for ITenantEntity types
+            if (typeof(ITenantEntity).IsAssignableFrom(clrType))
             {
-                // Combine tenant filter with soft-delete filter
-                var combinedFilter = Expression.Lambda(
-                    Expression.AndAlso(existingFilter.Body, filter.Body),
-                    param
-                );
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(combinedFilter);
+                var tenantIdProp = Expression.Property(param, nameof(ITenantEntity.TenantId));
+                Expression tenantFilter = _currentTenantId.HasValue
+                    ? Expression.Equal(tenantIdProp, Expression.Constant(_currentTenantId.Value))
+                    : Expression.Equal(Expression.Constant(Guid.Empty), tenantIdProp);
+                combinedBody = tenantFilter;
             }
-            else
-            {
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(filter);
-            }
+
+            // Add soft-delete filter
+            var deletedProp = Expression.Property(param, nameof(BaseEntity.IsDeleted));
+            var softDeleteFilter = Expression.Equal(deletedProp, Expression.Constant(false));
+
+            combinedBody = combinedBody != null
+                ? Expression.AndAlso(combinedBody, softDeleteFilter)
+                : softDeleteFilter;
+
+            var filter = Expression.Lambda(combinedBody, param);
+            modelBuilder.Entity(clrType).HasQueryFilter(filter);
         }
     }
 

@@ -1,4 +1,5 @@
 using BharatCMS.Core.Context;
+using Microsoft.EntityFrameworkCore;
 
 namespace BharatCMS.Api.Middleware;
 
@@ -65,7 +66,7 @@ public class TenantResolutionMiddleware
         }
 
         // Set tenant context
-        tenantContext.SetTenant(tenant.Id);
+        tenantContext.SetTenant(tenant.TenantId);
         tenantContext.SetTenantBySlug(slug);
 
         // Store tenant info for downstream use
@@ -129,4 +130,3 @@ public class TenantContextData
             .FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant());
     }
 }
-using Microsoft.EntityFrameworkCore;

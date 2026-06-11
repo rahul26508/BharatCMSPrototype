@@ -4,6 +4,7 @@ using BharatCMS.Core.Context;
 using BharatCMS.Core.Interfaces;
 using BharatCMS.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 
 public class UserRepository : IUserRepository
 {
@@ -60,7 +61,7 @@ public class UserRepository : IUserRepository
         return await _context.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
     }
 
-    public async Task<User?> GetWithRoleAsync(Guid userId, CancellationToken ct = default)
+    public async Task<User?> GetWithRoleAsync(long userId, CancellationToken ct = default)
     {
         return await _context.Users
             .Include(u => u.Role)
@@ -68,7 +69,7 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Id == userId, ct);
     }
 
-    public async Task<bool> EmailExistsAsync(string email, Guid? excludeUserId = null, CancellationToken ct = default)
+    public async Task<bool> EmailExistsAsync(string email, long? excludeUserId = null, CancellationToken ct = default)
     {
         var query = _context.Users.Where(u => u.Email == email);
         if (excludeUserId.HasValue)
@@ -76,7 +77,7 @@ public class UserRepository : IUserRepository
         return await query.AnyAsync(ct);
     }
 
-    public async Task UpdateLastLoginAsync(Guid userId, string ipAddress, CancellationToken ct = default)
+    public async Task UpdateLastLoginAsync(long userId, string ipAddress, CancellationToken ct = default)
     {
         var user = await _context.Users.FindAsync(new object[] { userId }, ct);
         if (user != null)
@@ -115,7 +116,7 @@ public class TenantRepository : ITenantRepository
         return await _context.Tenants.FirstOrDefaultAsync(t => t.Slug == slug.ToLowerInvariant(), ct);
     }
 
-    public async Task<bool> SlugExistsAsync(string slug, Guid? excludeTenantId = null, CancellationToken ct = default)
+    public async Task<bool> SlugExistsAsync(string slug, long? excludeTenantId = null, CancellationToken ct = default)
     {
         _context.BypassTenantFilter();
         var query = _context.Tenants.Where(t => t.Slug == slug.ToLowerInvariant());
@@ -147,6 +148,12 @@ public class TenantRepository : ITenantRepository
     {
         entity.IsDeleted = true;
         return UpdateAsync(entity, ct);
+    }
+
+    public async Task<IEnumerable<Tenant>> FindAsync(Expression<Func<Tenant, bool>> predicate, CancellationToken ct = default)
+    {
+        _context.BypassTenantFilter();
+        return await _context.Tenants.Where(predicate).ToListAsync(ct);
     }
 
     public async Task<int> CountAsync(Expression<Func<Tenant, bool>>? predicate = null, CancellationToken ct = default)

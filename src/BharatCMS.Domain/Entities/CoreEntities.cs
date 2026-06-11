@@ -97,8 +97,6 @@ public class AuditLog
 /// </summary>
 public class Document : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public required string Title { get; set; }
     public string? Description { get; set; }
 
@@ -173,8 +171,6 @@ public class Document : BaseEntity, ITenantEntity
 /// </summary>
 public class Notice : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public required string Title { get; set; }
     public required string Content { get; set; }
 
@@ -226,8 +222,6 @@ public enum NoticePriority
 /// </summary>
 public class Faq : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public required string Question { get; set; }
     public required string Answer { get; set; }
 
@@ -260,8 +254,6 @@ public class Faq : BaseEntity, ITenantEntity
 /// </summary>
 public class ChatSession : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     /// <summary>
     /// Visitor/anonymous or logged-in user.
     /// </summary>
@@ -282,11 +274,6 @@ public class ChatSession : BaseEntity, ITenantEntity
 /// </summary>
 public class ChatMessage : BaseEntity
 {
-    /// <summary>
-    /// Optional tenant context (for history queries).
-    /// </summary>
-    public Guid? TenantId { get; set; }
-
     public Guid SessionId { get; set; }
     public ChatSession Session { get; set; } = null!;
 
@@ -333,8 +320,6 @@ public class ChatMessage : BaseEntity
 /// </summary>
 public class SyncQueue : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     /// <summary>
     /// Entity type being synced.
     /// </summary>
@@ -395,8 +380,6 @@ public enum SyncStatus
 /// </summary>
 public class ApiIntegration : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public required string Name { get; set; }
     public string? Description { get; set; }
 

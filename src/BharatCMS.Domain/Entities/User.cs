@@ -6,8 +6,6 @@ namespace BharatCMS.Domain.Entities;
 /// </summary>
 public class User : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public required string Email { get; set; }
 
     /// <summary>
@@ -73,8 +71,6 @@ public class User : BaseEntity, ITenantEntity
 /// </summary>
 public class Role : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public required string Name { get; set; }
     public string? Description { get; set; }
 
@@ -93,8 +89,6 @@ public class Role : BaseEntity, ITenantEntity
 /// </summary>
 public class RolePermission : BaseEntity, ITenantEntity
 {
-    public required Guid TenantId { get; set; }
-
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = null!;
 

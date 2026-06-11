@@ -4,7 +4,6 @@ using BharatCMS.Core.Interfaces;
 using BharatCMS.Infrastructure.Repositories;
 using BharatCMS.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -91,30 +90,7 @@ builder.Services.AddHostedService<ApiSyncScheduler>();  // Cron for API integrat
 builder.Services.AddHostedService<OcrProcessor>();       // PDF OCR queue processor
 
 // === API DOCUMENTATION ===
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "BharatCMS API",
-        Version = "v1.0.0",
-        Description = "Indian Government Multi-Tenant CMS API - CERT-In Compliant"
-    });
-    c.AddSecurityDefinition("CookieAuth", new OpenApiSecurityScheme
-    {
-        Type = SecuritySchemeType.ApiKey,
-        In = ParameterLocation.Cookie,
-        Name = "bharat_auth",
-        Description = "JWT token passed via HttpOnly secure cookie"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "CookieAuth" } },
-            Array.Empty<string>()
-        }
-    });
-});
+builder.Services.AddOpenApi();
 
 // === CORS ===
 builder.Services.AddCors(options =>
@@ -130,7 +106,7 @@ builder.Services.AddCors(options =>
 
 // === HEALTH CHECKS ===
 builder.Services.AddHealthChecks()
-    .AddSqlServer(dbConnection, name: "sqlserver");
+    .AddDbContextCheck<BharatDbContext>();
 
 var app = builder.Build();
 
@@ -157,28 +133,27 @@ app.UseAuthorization();
 app.MapHealthChecks("/health");
 
 // Auth endpoints
-app.MapAuthEndpoints();
+MapAuthEndpoints();
 
 // Tenant endpoints (admin only)
-app.MapTenantEndpoints();
+MapTenantEndpoints();
 
 // Content endpoints (notices, FAQs, documents)
-app.MapContentEndpoints();
+MapContentEndpoints();
 
 // Chatbot endpoint
-app.MapChatbotEndpoints();
+MapChatbotEndpoints();
 
 // File upload endpoint
-app.MapFileEndpoints();
+MapFileEndpoints();
 
 // Sync endpoints (PWA)
-app.MapSyncEndpoints();
+MapSyncEndpoints();
 
-// Swagger (only in dev)
+// OpenAPI (only in dev)
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
 }
 
 app.Run();
@@ -189,7 +164,7 @@ void MapAuthEndpoints()
 {
     var group = app.MapGroup("/api/auth").WithTags("Authentication");
 
-    group.MapPost("/login", async (LoginRequest request, AuthService auth, BharatDbContext db) =>
+    group.MapPost("/login", async (LoginRequest request, AuthService auth, BharatDbContext db, HttpContext context) =>
     {
         var user = await db.Users
             .Include(u => u.Role)
@@ -203,18 +178,19 @@ void MapAuthEndpoints()
 
         var permissions = user.Role.Permissions.Select(p => p.Permission).ToList();
         var token = auth.GenerateToken(user.Id, user.Email, user.TenantId, permissions);
-        auth.SetAuthCookie(app.Response, token, request.RememberMe);
+        auth.SetAuthCookie(context.Response, token, request.RememberMe);
 
         await db.Users.FirstOrDefaultAsync(u => u.Id == user.Id)!;
         // Log audit
         await db.AuditLogs.AddAsync(new BharatCMS.Domain.Entities.AuditLog
         {
             TenantId = user.TenantId,
-            UserId = user.Id,
+            UserId = Guid.Empty,
             UserEmail = user.Email,
             Action = "LOGIN",
             RequestPath = "/api/auth/login",
-            IpAddress = app.Context?.Connection.RemoteIpAddress?.ToString(),
+            EntityName = "User",
+            IpAddress = context.Connection.RemoteIpAddress?.ToString(),
             Timestamp = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
@@ -222,10 +198,10 @@ void MapAuthEndpoints()
         return Results.Ok(new { userId = user.Id, email = user.Email, name = user.FullName });
     }).WithName("Login");
 
-    group.MapPost("/logout", () =>
+    group.MapPost("/logout", (HttpContext context) =>
     {
-        var authService = app.Services.GetRequiredService<AuthService>();
-        authService.ClearAuthCookie(app.Response);
+        var authService = context.RequestServices.GetRequiredService<AuthService>();
+        authService.ClearAuthCookie(context.Response);
         return Results.Ok();
     }).WithName("Logout");
 
@@ -380,7 +356,7 @@ void MapChatbotEndpoints()
             Role = "user",
             Content = request.Message,
             Language = request.Language,
-            TenantId = tenantId
+            TenantId = tenantId ?? Guid.Empty
         });
         db.ChatMessages.Add(new BharatCMS.Domain.Entities.ChatMessage
         {
@@ -390,7 +366,7 @@ void MapChatbotEndpoints()
             Intent = response.Intent,
             Sources = response.Sources != null ? System.Text.Json.JsonSerializer.Serialize(response.Sources) : null,
             Confidence = response.Confidence,
-            TenantId = tenantId
+            TenantId = tenantId ?? Guid.Empty
         });
         await db.SaveChangesAsync();
 
@@ -506,7 +482,7 @@ void MapSyncEndpoints()
 
         await db.SaveChangesAsync();
 
-        return Results.Ok(new { processed = request.Items.Count });
+        return Results.Ok(new { processed = request.Items.Count() });
     }).WithName("SyncPush");
 
     group.MapGet("/pull", async (DateTime since, BharatDbContext db, HttpContext context) =>
@@ -527,7 +503,7 @@ void MapSyncEndpoints()
 Guid? GetCurrentTenantId(HttpContext context)
 {
     if (context.Items.TryGetValue("Tenant", out var tenant) && tenant is BharatCMS.Domain.Entities.Tenant t)
-        return t.Id;
+        return t.TenantId;
     return context.User.FindFirst("tenant_id")?.Value is string tid ? Guid.Parse(tid) : null;
 }
 

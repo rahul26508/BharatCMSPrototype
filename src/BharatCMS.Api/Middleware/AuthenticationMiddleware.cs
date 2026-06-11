@@ -78,7 +78,7 @@ public class AuthService
         _logger = logger;
     }
 
-    public string GenerateToken(Guid userId, string email, Guid tenantId, IEnumerable<string> permissions)
+    public string GenerateToken(long userId, string email, Guid tenantId, IEnumerable<string> permissions)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

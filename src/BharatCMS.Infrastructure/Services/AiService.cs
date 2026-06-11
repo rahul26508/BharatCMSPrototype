@@ -68,9 +68,9 @@ public class AiService
     public async Task<byte[]> CompressImageAsync(byte[] imageData, int quality = 80)
     {
         // ImageSharp handles compression - this is for AI-assisted optimization
-        using var input = new SixLabors.ImageSharp.Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(imageData);
+        using var input = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgba32>(imageData);
         using var ms = new MemoryStream();
-        await input.SaveAsJpegAsync(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
+        await input.SaveAsync(ms, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder { Quality = quality });
         return ms.ToArray();
     }
 
@@ -171,17 +171,12 @@ public class BhashiniService
             var response = await _httpClient.PostAsync(endpoint, content);
             var result = await response.Content.ReadFromJsonAsync<SttResponse>();
 
-            return new SttResult
-            {
-                Text = result?.Text ?? "",
-                Language = language,
-                Confidence = result?.Confidence ?? 0.9f
-            };
+            return new SttResult(result?.Text ?? "", language, result?.Confidence ?? 0.9f);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "STT failed for language {Language}", language);
-            return new SttResult { Text = "", Language = language };
+            return new SttResult("", language, 0f);
         }
     }
 
